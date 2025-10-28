@@ -1,0 +1,173 @@
+---
+title: "Project Part-1"
+author: "Leo Lu"
+date: "2024-11-12"
+output:
+  pdf_document:
+    toc: true
+    number_sections: true
+    fig_width: 7
+    fig_height: 6
+    fig_caption: true
+    df_print: paged
+    highlight: tango
+    latex_engine: xelatex
+  html_document:
+    df_print: paged
+    toc: true
+  word_document:
+    toc: true
+fontsize: 12pt
+geometry: margin=1in
+fontfamily: mathpazo
+chunk_output_type: console
+editor_options:
+  markdown:
+    wrap: 72
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(ggplot2)
+library(readr)
+library(skimr)
+```
+
+# Brief Overview of the Data
+```{r load_data}
+# Data Loading
+diamonds <- read_csv("Diamonds Prices2022.csv")
+
+# Data Preview
+head(diamonds)
+
+# Adjusting Data
+diamonds = diamonds[,-1]
+str(diamonds)
+diamonds$cut = factor(diamonds$cut,
+        levels = c('Fair', 'Good', 'Very Good', 'Premium', 'Ideal'))
+diamonds$color = factor(diamonds$color,
+        levels = c('D', 'E', 'F', 'G', 'H', 'I', 'J'))
+diamonds$clarity = factor(diamonds$clarity,
+        levels = c('I1', 'SI2', 'SI1', 'VS2', 'VS1', 'VVS2', 'VVS1', 'IF'))
+
+str(diamonds)
+```
+
+# Random Sample
+```{r random sampling}
+set.seed(111)
+index = sample(1:nrow(diamonds), size = 500, replace = F) 
+diamonds_sample = diamonds[index, ]
+```
+
+# Data Summarize
+```{r data summarize}
+pairs(diamonds_sample)
+```
+
+# Variables Description
+
+## Cut [Categorical variable that discribes the quality of the cut (Fair, Good, Very Good, Premium, Ideal)]
+```{r Cut}
+ggplot(diamonds_sample, aes(x = cut)) +
+  geom_bar(fill = "turquoise", color = "navyblue") +
+  labs(title = "Frequency Distribution of Diamond Cut Quality", x = "Cut Quality", 
+       y = "Frequency") + theme_minimal()
+```
+Comment: The barplot of the cut variable shows that the majority of diamonds are in higher quality categories like 'Very Good', 'Premium', and 'Ideal'. This left-skewed distribution indicates a dataset preference for diamonds with better cut quality.
+
+## Color [Categorical variable that describes the quality of the diamond color, graded from D (best) to J (worst)]
+```{r Color}
+ggplot(diamonds_sample, aes(x = color)) +
+  geom_bar(fill = "turquoise", color = "navyblue") +
+  labs(title = "Frequency Distribution of Diamond Color Quality", x = "Color Quality", 
+       y = "Frequency") + theme_minimal()
+```
+Comment: We can see from the bar plot that the grades E, F, and G are the most common, indicating a preference for mid-range rather than extreme color quality diamonds. Thus, it might be bimodal or multimodal distribution.
+
+## Carat [Quantitative variable that values the weight of the diamond (0.2-5.01)]
+
+```{r Carat}
+ggplot(diamonds_sample, aes(x = carat)) +
+  geom_histogram(binwidth = 0.1, fill = "turquoise", color = "navyblue") +
+  labs(title = "Frequency Distribution of Carat Weight", x = "Carat", y = "Frequency") +
+  theme_minimal()
+```
+Comment: The distribution is right-skewed, with a high frequency of smaller carat weights around 0.5, followed by a gradual decrease in frequency as carat weight increases. It shows that smaller diamonds are more popular in the dataset compared to larger ones.
+
+## Depth [Quantitative variable that values the total depth percentage (z/mean(x,y)=2*z/(x+y)(43-79)]
+```{r Depth}
+ggplot(diamonds_sample, aes(x = depth)) +
+  geom_histogram(binwidth = 0.5, fill = "turquoise", color = "navyblue") +
+  labs(title = "Frequency Distribution of Depth Percentage", x = "Depth Percentage", 
+       y = "Frequency") + theme_minimal()
+```
+Comment: This is approximately normally distributed, centered around 61% and most values falling between 59% and 63%. It indicates that most diamonds in the dataset tend to have identical depth proportions.
+
+## Price [Quantitative variable that values the price of the diamond in US dollars ($326-$18,823)]
+```{r Price}
+ggplot(diamonds_sample, aes(x = price)) +
+  geom_histogram(binwidth = 1000, fill = "turquoise", color = "navyblue") +
+  labs(title = "Frequency Distribution of Price", x = "Price (USD)", y = "Frequency") +
+  theme_minimal()
+```
+Comment: This shows a right-skewed distribution, with a high concentration of diamonds priced below $2000. This indicates that lower-priced diamonds are more common, while high-priced diamonds are less frequent, indicating that expensive diamonds are not popular in this dataset.
+
+# Correlation Analysis
+
+## Two Quantitative Variables
+```{R Price vs. Carat}
+ggplot(diamonds, aes(x = carat, y = price)) +
+geom_point(alpha = 0.5, color = "coral") +
+scale_x_continuous(limits = c(0, 6)) +
+labs(title = "Scatterplot of Price vs. Carat",
+x = "Carat (ct)",
+y = "Price (USD)") +
+theme_minimal()
+```
+Comment: There is a clear positive correlation, where price tends to increase with carat size. The plot also reveals variability in prices for similar carat weights, indicating that other factors besides carat contribute to the price. There are some clusters of data around certain carat weights indicate that the diamonds of these weights are more common.
+
+## Quantitative and Categorical Variables
+```{r Depth vs. Cut}
+ggplot(diamonds_sample, aes(x = cut, y = depth, fill = cut)) +
+  geom_violin(trim = FALSE) +
+  geom_boxplot(width = 0.1, color = "black", position = position_dodge(0.9)) +
+  labs(title = "Violin Plot of Cut vs. Depth",
+       x = "Cut Quality",
+       y = "Depth (%)") +
+  theme_minimal()
+```
+Comment: The distribution for "Fair" cut has the widest spread, and it become more compact as the cut quality becomes better, indicating more consistency in depth. The median depth decreases as cut quality becomes better slightly, suggesting that depth vary, but not significantly between cuts. 
+
+## Two Categorical Variables
+```{r Contingency vs. Table}
+cut_color <- table(diamonds_sample$cut, diamonds_sample$color)
+cut_color
+```
+Comment: There is positive association between higher cut quality and more common colors. Ideal and Premium cuts have the highest counts across most color grades, indicating that higher-quality cuts tend to be more prevalent. Lower cut quality like Fair has fewer diamonds across all color grades, suggesting a preference in the dataset towards higher quality.
+
+## Visualizing Correlation Matrix
+```{r correlation matrix}
+library(corrplot)
+cor_matrix <- cor(diamonds %>% select_if(is.numeric))
+corrplot(cor_matrix, method="color", col=colorRampPalette(c("blue", "white",
+        "red"))(200), type="upper", tl.col="black", tl.srt=45, 
+        addCoef.col = "black")
+cor_matrix[c("price","depth","table"),c("price","depth","table")]
+```
+
+# Multiple Linear Regression
+```{r linear-regression}
+fit <- lm(price ~ carat + depth + cut + color, data = diamonds_sample)
+summary(fit)
+```
+# Observations
+- Carat weight has the largest positive coefficient. This indicates that the carat of diamonds is the most significant predictor.
+- There is a gap between the coefficient of colorJ and colorI, which shows that colorJ is normally have a significantly decrease in the value of the diamonds.
+- As expected, the price is in a positive correlation with the increase in the quality of cut and color.
+- The Multiple R-squared is 0.8579, which represents that nearly 86% of the variance of price can be explained by this model. This shows a generally good fit.
+- The depth influence least the price of the diamond which is kind of surprising
+- Since there is a large F(245.1), shows that all coefficients of the variables are significant.
+- The different between the coefficients of the cut qualities "ideal" and "Premium" is not that significant compared with other qualities. I suppose that they should be approximately similar, which is kind of surprising.

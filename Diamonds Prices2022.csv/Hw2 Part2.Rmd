@@ -1,0 +1,150 @@
+---
+title: "Project Part-2"
+author: "Leo Lu"
+date: "2024-12-04"
+output:
+  pdf_document:
+    toc: true
+    number_sections: true
+    fig_width: 7
+    fig_height: 6
+    fig_caption: true
+    df_print: paged
+    highlight: tango
+    latex_engine: xelatex
+  html_document:
+    df_print: paged
+    toc: true
+  word_document:
+    toc: true
+fontsize: 12pt
+geometry: margin=1in
+fontfamily: mathpazo
+chunk_output_type: console
+editor_options:
+  markdown:
+    wrap: 72
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(ggplot2)
+library(readr)
+library(skimr)
+library(faraway)
+```
+
+# Brief Overview of the Data
+```{r load_data}
+# Data Loading
+diamonds <- read_csv("Diamonds Prices2022.csv")
+
+# Data Preview
+head(diamonds)
+
+# Adjusting Data
+diamonds = diamonds[,-1]
+str(diamonds)
+diamonds$cut = factor(diamonds$cut,
+        levels = c('Fair', 'Good', 'Very Good', 'Premium', 'Ideal'))
+diamonds$color = factor(diamonds$color,
+        levels = c('D', 'E', 'F', 'G', 'H', 'I', 'J'))
+diamonds$clarity = factor(diamonds$clarity,
+        levels = c('I1', 'SI2', 'SI1', 'VS2', 'VS1', 'VVS2', 'VVS1', 'IF'))
+
+str(diamonds)
+```
+
+# Random Sample
+```{r random sampling}
+set.seed(111)
+index = sample(1:nrow(diamonds), size = 500, replace = F) 
+diamonds_sample = diamonds[index, ]
+```
+
+# Multiple Linear Regression
+```{r linear-regression}
+fit <- lm(price ~ carat + depth + cut + color + table, data = diamonds_sample)
+summary(fit)
+```
+
+# Checking Multicolinearity
+## Variance Inflation Factor
+```{r variance inflation factor}
+X = model.matrix(fit)[,-1]
+R = cor(X)
+diag(solve(R))
+
+W <- scale(X)
+W <- W / sqrt(nrow(X) - 1)
+diag(solve(t(W)%*%W))
+
+faraway::vif(fit)
+```
+These three approaches will give us three same answers where we can observed that there are two VIFs bigger than 10. However, both of cutPremium and cutIdeal are dummy variables from categorical variables, so it is not appropriate to exclude that covatiate.
+
+## Using Condition Index
+```{r condition index}
+eigenval = eigen(R)$values
+sqrt(max(eigenval)/eigenval)
+```
+As we can see for the results that there are no one number bigger than 30 or even bigger than 10, so there is no severe multicolinearity.
+
+# Variable Selection of Regression Model
+## Backward Stepwise Elemination
+```{r backward stepwise elemination}
+library(MASS)
+fit1 <- lm(price ~ carat + depth + cut + color + table, data = diamonds)
+fit1_step <- stepAIC(fit1, direction="both", k = 2, trace = 0)
+summary(fit1_step)
+```
+
+## Forward Stepwise Elemination
+```{r forward stepwise elemination}
+fit2 = lm(price ~ 1, data = diamonds)
+fit2_step <- stepAIC(fit2, direction="both",
+                     scope=list(upper=formula(fit1)), k = 2, trace = 0)
+summary(fit2_step)
+```
+
+# Cross Validation
+```{r cross validation}
+KFoldCV_lm = function(data, response, formula, k,
+                      seed = FALSE, seed_num, shuffle = FALSE) {
+  if (seed == TRUE) {
+    set.seed(seed_num)
+  }
+  if(shuffle == TRUE) {
+    shuffle_index = sample(1:nrow(data), replace = FALSE)
+    data = data[shuffle_index,]
+    response = response[shuffle_index]
+  }
+  
+  folds <- cut(seq(1,nrow(data)),breaks=k,labels=FALSE)
+  mse = numeric()
+  for(i in 1:k){
+    testIndexes <- which(folds == i, arr.ind=TRUE)
+    testData <- data[testIndexes, ]
+    trainData <- data[-testIndexes, ]
+    fit.train = lm(formula, data = trainData)
+    mse[i] = 
+      (1/length(testIndexes))*sum((response[testIndexes] - 
+                                     predict(fit.train, newdata = testData))^2)
+  }
+  rmse = sqrt(mse)
+  cv_k_mse = sum(mse)/k
+  cv_k_rmse = sum(rmse)/k
+  return(list(CV_MSE = cv_k_mse, CV_RMSE = cv_k_rmse))
+}
+
+KFoldCV_lm(response = diamonds$price,
+           formula =price ~ carat + depth + cut + color + table,
+           data = diamonds,
+           k = 10, shuffle = TRUE, seed = TRUE, seed_num = 1)
+
+KFoldCV_lm(response = diamonds$price,
+           formula =price ~ carat + cut + color,
+           data = diamonds,
+           k = 10, shuffle = TRUE, seed = TRUE, seed_num = 1)
+```

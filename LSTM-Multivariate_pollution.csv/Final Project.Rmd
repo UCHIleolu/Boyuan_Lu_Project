@@ -1,0 +1,123 @@
+---
+title: "Final Project Report: Forecasting Pollution Using Time Series Analysis"
+author: "Leo Lu (boyuanlu@ucsb.edu)"
+date: "2025-03-21"
+output: 
+  pdf_document:
+    keep_tex: true
+    latex_engine: xelatex
+---
+
+# Box-Jenkins approach
+```{r 2, message=FALSE, warning=FALSE}
+library(tidyverse)
+df <- read.csv("filtered_pollution_data.csv")
+```
+
+## Step 1: Plot the data
+```{r 2.2.1}
+plot.ts(df$pollution, main="Time Series of Pollution Levels",
+        ylab="Pollution Level", xlab="Time")
+```
+
+## Step 2: Transformation
+```{r 2.1.2}
+df$pollution_log <- log(df$pollution + 1)
+
+plot.ts(df$pollution_log, main="Log Transformed Pollution Data",
+        ylab="Log Transformed Pollution Level", xlab="Time")
+```
+
+## Step 3: Identification
+```{r 2.1.3, message=FALSE, warning=FALSE}
+library(forecast)
+library(tseries)
+par(mfrow=c(1,2))
+
+acf(df$pollution_log, main="ACF of Log Transformed Data")
+pacf(df$pollution_log, main="PACF of Log Transformed Data")
+
+par(mfrow=c(1,1))
+
+adf.test(df$pollution_log)
+```
+
+## Step 4: Estimation of parameters
+```{r 2.1.4}
+library(astsa)
+fit <- sarima(df$pollution_log, p=3, d=0, q=2)
+```
+
+## Step 5: Diagnostics
+1. There is no obvious patterns and no outliers exceeding 3 standard deviations.
+2. The plot of the estimated ACF of the residuals shows nearly no apparent departure from the model assumption, except a few lags.
+3. The normal Q-Q plot of the residuals show that the assumption of normality is reasonable, although there are some outliers.
+4. The Q-statistic is not statistically significant.
+
+## Step 6: Model selection
+```{r 2.1.6}
+df_best <- auto.arima(df$pollution_log, seasonal = FALSE, ic="bic")
+summary(df_best)
+```
+
+ARIMA(3,0,2) is the best selection for this model.
+
+## Additional Step: Forecast
+```{r 2.2}
+df_forecast <- forecast(df_best, h=12)
+df_forecast1 <- exp(df_forecast$mean)
+df_forecast1
+
+time_index <- 1:12
+plot(time_index, df_forecast1,
+     type = "o", col = "blue",
+     xlab = "Forecast Step",
+     ylab = "Pollution Level",
+     main = "12-Step Ahead Forecast of Pollution")
+```
+
+# Unit Root
+## Step 1: DF Test
+```{r}
+df_result <- adf.test(df$pollution_log, k = 0)
+print(df_result)
+```
+
+## Step 2: ADF Test
+```{r}
+adf_result <- adf.test(df$pollution_log)
+print(adf_result)
+```
+
+## Step 3: PP Test
+```{r}
+pp_result <- pp.test(df$pollution_log)
+print(pp_result)
+```
+
+# ARMAX Method
+## Selection criteria
+```{r message=FALSE, warning=FALSE}
+library(vars)
+dfvars <- cbind(pollution_log = df$pollution_log,
+                   TEMP = df$temp,
+                   DEW = df$dew,
+                   PRESS = df$press)
+
+dfvars <- na.omit(dfvars)
+VARselect(dfvars, lag.max = 10, type = "both")
+dfarmax <- VAR(dfvars, p = 2, type = "both")
+summary(dfarmax)
+```
+```{r}
+dfarmax <- VAR(dfvars, p = 2, type = "both")
+summary(dfarmax)
+```
+
+## Residual ACF/CCF and Prediction
+```{r, fig.width=10, fig.height=6}
+serial.test(dfarmax, lags.pt = 12, type = "PT.adjusted")
+
+dfpredict <- predict(dfarmax, n.ahead = 24, ci = 0.95)
+fanchart(dfpredict)
+```
